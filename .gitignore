@@ -1,0 +1,9 @@
+build/bin
+node_modules
+frontend/dist
+config.json
+lootmanager.db
+lootmanager.db-wal
+lootmanager.db-shm
+icons/
+screenshots/
