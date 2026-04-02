@@ -3,8 +3,8 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 	_ "modernc.org/sqlite"
+	"strings"
 )
 
 var DB *sql.DB
@@ -355,6 +355,11 @@ func UpsertQuest(id, name, trader string) error {
 	return err
 }
 
+func ClearQuestRequirements() error {
+	_, err := DB.Exec(`DELETE FROM quest_requirements`)
+	return err
+}
+
 func UpsertQuestRequirement(id, questID, itemID string, quantity int, foundInRaid bool) error {
 	fir := 0
 	if foundInRaid {
@@ -465,30 +470,41 @@ func GetItemRequirements() ([]struct {
 	StashNorm        int
 }, error) {
 	rows, err := DB.Query(`
+		WITH hideout_totals AS (
+			SELECT
+				hr.item_id AS item_id,
+				COALESCE(SUM(CASE WHEN hr.found_in_raid = 1 THEN hr.quantity ELSE 0 END), 0) AS hideout_total_fir,
+				COALESCE(SUM(CASE WHEN hr.found_in_raid = 1 AND hl.completed = 1 THEN hr.quantity ELSE 0 END), 0) AS hideout_used_fir,
+				COALESCE(SUM(CASE WHEN hr.found_in_raid = 0 THEN hr.quantity ELSE 0 END), 0) AS hideout_total_norm,
+				COALESCE(SUM(CASE WHEN hr.found_in_raid = 0 AND hl.completed = 1 THEN hr.quantity ELSE 0 END), 0) AS hideout_used_norm
+			FROM hideout_requirements hr
+			LEFT JOIN hideout_levels hl ON hl.id = hr.level_id
+			GROUP BY hr.item_id
+		),
+		quest_totals AS (
+			SELECT
+				qr.item_id AS item_id,
+				COALESCE(SUM(CASE WHEN qr.found_in_raid = 1 THEN qr.quantity ELSE 0 END), 0) AS quest_total_fir,
+				COALESCE(SUM(CASE WHEN qr.found_in_raid = 0 THEN qr.quantity ELSE 0 END), 0) AS quest_total_norm
+			FROM quest_requirements qr
+			GROUP BY qr.item_id
+		)
 		SELECT
 			i.id,
 			i.name,
 			COALESCE(i.icon_path, ''),
-			COALESCE(SUM(CASE WHEN hr.found_in_raid = 1 THEN hr.quantity ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN hr.found_in_raid = 1 AND hl.completed = 1 THEN hr.quantity ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN hr.found_in_raid = 0 THEN hr.quantity ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN hr.found_in_raid = 0 AND hl.completed = 1 THEN hr.quantity ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN qr.found_in_raid = 1 THEN qr.quantity ELSE 0 END), 0),
-			COALESCE(SUM(CASE WHEN qr.found_in_raid = 0 THEN qr.quantity ELSE 0 END), 0),
+			COALESCE(ht.hideout_total_fir, 0),
+			COALESCE(ht.hideout_used_fir, 0),
+			COALESCE(ht.hideout_total_norm, 0),
+			COALESCE(ht.hideout_used_norm, 0),
+			COALESCE(qt.quest_total_fir, 0),
+			COALESCE(qt.quest_total_norm, 0),
 			COALESCE(s.fir_quantity, 0),
 			COALESCE(s.quantity, 0)
 		FROM items i
-		LEFT JOIN (
-			SELECT DISTINCT item_id FROM hideout_requirements
-			UNION
-			SELECT DISTINCT item_id FROM quest_requirements
-		) needed ON needed.item_id = i.id
-		LEFT JOIN hideout_requirements hr ON hr.item_id = i.id
-		LEFT JOIN hideout_levels hl ON hl.id = hr.level_id
-		LEFT JOIN quest_requirements qr ON qr.item_id = i.id
-		LEFT JOIN quests q ON q.id = qr.quest_id
+		LEFT JOIN hideout_totals ht ON ht.item_id = i.id
+		LEFT JOIN quest_totals qt ON qt.item_id = i.id
 		LEFT JOIN stash s ON s.item_id = i.id
-		GROUP BY i.id, i.name, i.icon_path
 		ORDER BY i.name
 	`)
 	if err != nil {

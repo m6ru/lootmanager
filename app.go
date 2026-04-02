@@ -257,16 +257,37 @@ func (a *App) SyncHideoutAndQuests() error {
 		return fmt.Errorf("failed to fetch quests: %w", err)
 	}
 
+	if err := db.ClearQuestRequirements(); err != nil {
+		return fmt.Errorf("failed to clear quest requirements: %w", err)
+	}
+
 	for _, quest := range quests {
 		if err := db.UpsertQuest(quest.ID, quest.Name, quest.Trader.Name); err != nil {
 			return err
 		}
-		for i, obj := range quest.Objectives {
+		type questReqKey struct {
+			ItemID string
+			FIR    bool
+		}
+		// Tarkov API can emit duplicate item objectives for the same quest.
+		// Collapse them by item+FIR and keep the max required quantity.
+		deduped := make(map[questReqKey]int)
+		for _, obj := range quest.Objectives {
 			if obj.Item == nil {
 				continue
 			}
-			reqID := fmt.Sprintf("%s-%d", quest.ID, i)
-			if err := db.UpsertQuestRequirement(reqID, quest.ID, obj.Item.ID, obj.Count, obj.FoundInRaid); err != nil {
+			key := questReqKey{ItemID: obj.Item.ID, FIR: obj.FoundInRaid}
+			if obj.Count > deduped[key] {
+				deduped[key] = obj.Count
+			}
+		}
+		for key, quantity := range deduped {
+			firFlag := 0
+			if key.FIR {
+				firFlag = 1
+			}
+			reqID := fmt.Sprintf("%s-%s-%d", quest.ID, key.ItemID, firFlag)
+			if err := db.UpsertQuestRequirement(reqID, quest.ID, key.ItemID, quantity, key.FIR); err != nil {
 				return err
 			}
 		}
@@ -471,10 +492,10 @@ func (a *App) ScanStash() (*StashResultDTO, error) {
 		return nil, err
 	}
 
-		url := fmt.Sprintf(
-			"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s",
-			config.GeminiAPIKey,
-		)
+	url := fmt.Sprintf(
+		"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s",
+		config.GeminiAPIKey,
+	)
 
 	resp, err := http.Post(url, "application/json", strings.NewReader(string(reqBody)))
 	if err != nil {
