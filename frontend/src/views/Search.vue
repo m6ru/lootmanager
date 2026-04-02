@@ -30,6 +30,7 @@ const results = computed(() => {
     i.name.toLowerCase().includes(search.value.toLowerCase())
   )
 })
+const showSearchArea = computed(() => !showSettings.value && !showStashUpdate.value)
 
 function need(total, used, stash = 0) {
   return Math.max(0, total - used - stash)
@@ -150,6 +151,22 @@ function cancelScan() {
   manualJSON.value = ''
   scanError.value = ''
 }
+
+function toggleStashUpdate() {
+  const next = !showStashUpdate.value
+  showStashUpdate.value = next
+  if (next) {
+    showSettings.value = false
+  }
+}
+
+function toggleSettings() {
+  const next = !showSettings.value
+  showSettings.value = next
+  if (next) {
+    showStashUpdate.value = false
+  }
+}
 </script>
 
 <template>
@@ -192,16 +209,16 @@ function cancelScan() {
         />
         <div style="margin-left: auto; display: flex; gap: 8px">
           <button
-            @click="showStashUpdate = !showStashUpdate"
+            @click="toggleStashUpdate"
             style="padding: 6px 12px; background: #1a2e1a; border: 1px solid #4a4; color: #4a4; cursor: pointer; border-radius: 4px; font-size: 0.85em"
           >
             {{ showStashUpdate ? 'Hide Stash Update' : '📦 Update Stash' }}
           </button>
           <button
-              @click="showSettings = !showSettings"
+              @click="toggleSettings"
               style="padding: 6px 12px; background: #2a2a4e; border: 1px solid #444; color: #aaa; cursor: pointer; border-radius: 4px; font-size: 0.85em"
             >
-              ⚙ Stash Scanner (Beta)
+            {{ showSettings ? 'Hide Stash Scanner' : '⚙ Stash Scanner (Beta)' }}
   </button>
         </div>
       </div>
@@ -321,62 +338,64 @@ function cancelScan() {
 
       <p v-if="error" style="color: red">{{ error }}</p>
 
-      <!-- Empty search state -->
-      <p v-if="!search" style="color: #555">
-        Search for an item to see how many are needed across hideout and quests.
-      </p>
+      <div v-if="showSearchArea">
+        <!-- Empty search state -->
+        <p v-if="!search" style="color: #555">
+          Search for an item to see how many are needed across hideout and quests.
+        </p>
 
-      <!-- No results -->
-      <p v-else-if="results.length === 0" style="color: #555">
-        No items found matching "{{ search }}"
-      </p>
+        <!-- No results -->
+        <p v-else-if="results.length === 0" style="color: #555">
+          No items found matching "{{ search }}"
+        </p>
 
-      <!-- Results table -->
-      <table v-else style="width: 100%; border-collapse: collapse; font-size: 0.9em">
-        <thead>
-          <tr style="text-align: left; border-bottom: 1px solid #333; color: #666">
-            <th style="padding: 8px">Item</th>
-            <th style="padding: 8px">Hideout FIR</th>
-            <th style="padding: 8px">Hideout</th>
-            <th style="padding: 8px">Quest FIR</th>
-            <th style="padding: 8px">Quest</th>
-            <th style="padding: 8px">In Stash</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="item in results"
-            :key="item.id"
-            style="border-bottom: 1px solid #1a1a2e"
-          >
-            <td style="padding: 8px; display: flex; align-items: center; gap: 8px">
-              <img v-if="item.iconPath" :src="item.iconPath" width="32" height="32" loading="lazy" style="image-rendering: pixelated" />
-              <div v-else style="width: 32px; height: 32px; background: #1a1a2e; border-radius: 2px" />
-              <span>{{ item.name }}</span>
-            </td>
-            <td style="padding: 8px" :style="need(item.hideoutTotalFIR, item.hideoutUsedFIR, item.stashFIR) > 0 ? 'color: #f90' : 'color: #FFF'">
-              {{ fmt(need(item.hideoutTotalFIR, item.hideoutUsedFIR, item.stashFIR), item.hideoutTotalFIR) }}
-            </td>
-            <td style="padding: 8px" :style="need(item.hideoutTotalNorm, item.hideoutUsedNorm, item.stashNorm) > 0 ? 'color: #f90' : 'color: #FFF'">
-              {{ fmt(need(item.hideoutTotalNorm, item.hideoutUsedNorm, item.stashNorm), item.hideoutTotalNorm) }}
-            </td>
-            <td style="padding: 8px; color: #aaa">
-              {{  fmt2(item.questTotalFIR)  }}
-            </td>
-            <td style="padding: 8px; color: #aaa">
-              {{ fmt2(item.questTotalNorm)  }}
-            </td>
-            <td style="padding: 8px; color: #aaa">
-              <span v-if="item.stashFIR > 0 || item.stashNorm > 0">
-                <span :style="item.stashFIR > 0 ? 'color: #f90' : 'color: #555'">{{ item.stashFIR }} FIR</span>
-                /
-                <span :style="item.stashNorm > 0 ? 'color: white' : 'color: #555'">{{ item.stashNorm }}</span>
-              </span>
-              <span v-else style="color: #333">—</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <!-- Results table -->
+        <table v-else style="width: 100%; border-collapse: collapse; font-size: 0.9em">
+          <thead>
+            <tr style="text-align: left; border-bottom: 1px solid #333; color: #666">
+              <th style="padding: 8px">Item</th>
+              <th style="padding: 8px">Hideout FIR</th>
+              <th style="padding: 8px">Hideout</th>
+              <th style="padding: 8px">Quest FIR</th>
+              <th style="padding: 8px">Quest</th>
+              <th style="padding: 8px">In Stash</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="item in results"
+              :key="item.id"
+              style="border-bottom: 1px solid #1a1a2e"
+            >
+              <td style="padding: 8px; display: flex; align-items: center; gap: 8px">
+                <img v-if="item.iconPath" :src="item.iconPath" width="32" height="32" loading="lazy" style="image-rendering: pixelated" />
+                <div v-else style="width: 32px; height: 32px; background: #1a1a2e; border-radius: 2px" />
+                <span>{{ item.name }}</span>
+              </td>
+              <td style="padding: 8px" :style="need(item.hideoutTotalFIR, item.hideoutUsedFIR, item.stashFIR) > 0 ? 'color: #f90' : 'color: #FFF'">
+                {{ fmt(need(item.hideoutTotalFIR, item.hideoutUsedFIR, item.stashFIR), item.hideoutTotalFIR) }}
+              </td>
+              <td style="padding: 8px" :style="need(item.hideoutTotalNorm, item.hideoutUsedNorm, item.stashNorm) > 0 ? 'color: #f90' : 'color: #FFF'">
+                {{ fmt(need(item.hideoutTotalNorm, item.hideoutUsedNorm, item.stashNorm), item.hideoutTotalNorm) }}
+              </td>
+              <td style="padding: 8px; color: #aaa">
+                {{  fmt2(item.questTotalFIR)  }}
+              </td>
+              <td style="padding: 8px; color: #aaa">
+                {{ fmt2(item.questTotalNorm)  }}
+              </td>
+              <td style="padding: 8px; color: #aaa">
+                <span v-if="item.stashFIR > 0 || item.stashNorm > 0">
+                  <span :style="item.stashFIR > 0 ? 'color: #f90' : 'color: #555'">{{ item.stashFIR }} FIR</span>
+                  /
+                  <span :style="item.stashNorm > 0 ? 'color: white' : 'color: #555'">{{ item.stashNorm }}</span>
+                </span>
+                <span v-else style="color: #333">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
   </div>

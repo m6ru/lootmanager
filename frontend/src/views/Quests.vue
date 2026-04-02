@@ -39,13 +39,13 @@ onMounted(async () => {
     <div v-if="!loading && quests.length">
 
       <!-- Trader buttons -->
-      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px">
+      <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 24px">
         <button
           v-for="trader in traders"
           :key="trader"
           @click="activeTrader = trader"
           :style="{
-            padding: '6px 14px',
+            padding: '6px 20px',
             borderRadius: '4px',
             border: '1px solid #444',
             cursor: 'pointer',
